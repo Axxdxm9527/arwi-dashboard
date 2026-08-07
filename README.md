@@ -169,3 +169,19 @@ python test_logic.py  # 验证滚动Z-Score / ARWI合成 / 信号灯规则
 ## 🧰 技术栈
 
 Python 3.9+ · Flask · requests · 新浪/腾讯财经接口 · FRED (pandas-datareader) · APScheduler · SQLite · ECharts（本地内置 + CDN 兜底）
+
+## 🌐 GitHub Pages 每日自动发布
+
+本项目已接入 **GitHub Actions 每日自动发布**，无需本地常驻服务即可查看最新看板：
+
+| 项目 | 说明 |
+|------|------|
+| **线上地址** | `https://axxdxm9527.github.io/arwi-dashboard/` |
+| **自动刷新** | 每日 **北京时间 6:00**（UTC 22:00，美股收盘后数据齐全）自动抓取并发布 |
+| **手动触发** | 仓库 Actions 页 → Daily Publish → Run workflow |
+| **发布方式** | `export_static.py` 抓取全部数据 → 内联 JSON → 静态快照推送到 GitHub Pages（免后端） |
+| **数据源** | FRED（OAS/美债/实际利率）+ investing.com（MOVE/VIX/DXY，Playwright+Chrome 尽力抓取，失败自动降级沿用 DB） |
+
+**本地运行**（完整动态版）：`python app.py` → http://127.0.0.1:5000（含手动刷新、实时抓取）。
+
+**工作流文件**：`.github/workflows/daily-publish.yml`（可自行修改 cron 时间或数据源）。
