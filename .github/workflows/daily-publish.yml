@@ -1,0 +1,64 @@
+name: Daily Publish
+
+# 每日自动刷新（北京时间 6:00 ≈ UTC 22:00，美股收盘后数据齐全）+ 手动触发
+on:
+  schedule:
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium --with-deps || true
+
+      - name: Install system Google Chrome (for investing.com anti-bot)
+        run: |
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get -f install -y
+          google-chrome --version || true
+
+      - name: Export static snapshot (fetch all sources, degrade gracefully)
+        run: python export_static.py --out dist
+        env:
+          PYTHONUNBUFFERED: '1'
+
+      - name: Show result summary
+        run: |
+          ls -la dist/
+          echo "--- data_date ---"
+          grep -o '"data_date":"[^"]*"' dist/index.html | head -1
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
