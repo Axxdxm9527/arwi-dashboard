@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARWI 3.0 资产风险预警看板</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+<style>
+/* ============ 主题变量 ============ */
+:root {
+  --bg: #f2f4fa; --bg-grad-1: #eef1fb; --bg-grad-2: #f6f8fd;
+  --card: rgba(255,255,255,.86); --card-border: rgba(15,23,42,.08);
+  --text: #0f172a; --text-2: #475569; --text-3: #8b98ad;
+  --accent: #4f46e5; --accent-2: #06b6d4; --accent-soft: rgba(79,70,229,.1);
+  --red: #ef4444; --amber: #f59e0b; --green: #10b981;
+  --grid: #e4e9f2; --shadow: 0 10px 34px rgba(30,41,59,.09);
+  --shadow-hover: 0 16px 44px rgba(30,41,59,.14);
+  --radius: 18px;
+}
+[data-theme="dark"] {
+  --bg: #0a1120; --bg-grad-1: #0d1630; --bg-grad-2: #0a1120;
+  --card: rgba(17,26,46,.72); --card-border: rgba(148,163,184,.14);
+  --text: #e7ecf5; --text-2: #9aa8bf; --text-3: #5d6c85;
+  --accent: #818cf8; --accent-2: #22d3ee; --accent-soft: rgba(129,140,248,.14);
+  --red: #f87171; --amber: #fbbf24; --green: #34d399;
+  --grid: #1e2a44; --shadow: 0 10px 34px rgba(0,0,0,.4);
+  --shadow-hover: 0 16px 44px rgba(0,0,0,.5);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: "Inter", "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  background-image:
+    radial-gradient(900px 480px at 8% -8%, var(--bg-grad-1), transparent 60%),
+    radial-gradient(800px 420px at 100% 0%, var(--bg-grad-2), transparent 55%);
+  color: var(--text);
+  min-height: 100vh;
+  transition: background .35s ease, color .35s ease;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============ 顶栏 ============ */
+header {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 14px 26px;
+  background: var(--card);
+  backdrop-filter: blur(18px) saturate(180%);
+  border-bottom: 1px solid var(--card-border);
+}
+.logo {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 20px; font-weight: 800; letter-spacing: .5px;
+  background: linear-gradient(120deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.logo-badge {
+  width: 40px; height: 40px; border-radius: 12px;
+  display: grid; place-items: center; font-size: 21px;
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--card-border);
+}
+.header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.time-chip {
+  font-size: 12.5px; color: var(--text-2);
+  background: var(--accent-soft); border: 1px solid var(--card-border);
+  padding: 7px 12px; border-radius: 999px; white-space: nowrap;
+}
+.theme-group {
+  display: flex; background: var(--accent-soft);
+  border: 1px solid var(--card-border); border-radius: 999px; padding: 3px;
+}
+.theme-group button {
+  border: 0; background: transparent; color: var(--text-2);
+  font-size: 12px; padding: 5px 11px; border-radius: 999px; cursor: pointer;
+  transition: all .2s ease;
+}
+.theme-group button.active { background: var(--accent); color: #fff; font-weight: 700; }
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--card-border); background: var(--card);
+  color: var(--text); font-size: 13.5px; font-weight: 600;
+  padding: 9px 18px; border-radius: 999px; cursor: pointer;
+  transition: transform .25s cubic-bezier(.16,1,.3,1), box-shadow .25s ease, background .25s ease;
+}
+.btn:hover { transform: translateY(-1.5px) scale(1.02); box-shadow: var(--shadow-hover); }
+.btn:active { transform: scale(.97); }
+.btn.primary {
+  background: linear-gradient(120deg, var(--accent), var(--accent-2));
+  color: #fff; border: 0;
+}
+.btn:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
+.spin { display: inline-block; animation: rot .8s linear infinite; }
+@keyframes rot { to { transform: rotate(360deg); } }
+
+/* ============ 警示条 ============ */
+.banner {
+  display: none; align-items: flex-start; gap: 10px;
+  margin: 16px 26px 0; padding: 12px 16px; border-radius: 14px;
+  font-size: 13.5px; line-height: 1.6;
+  border: 1px solid; animation: slideDown .4s cubic-bezier(.16,1,.3,1);
+}
+.banner.show { display: flex; }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+.banner.warn {
+  background: linear-gradient(120deg, rgba(245,158,11,.16), rgba(245,158,11,.06));
+  border-color: rgba(245,158,11,.45); color: var(--amber);
+}
+.banner.err {
+  background: linear-gradient(120deg, rgba(239,68,68,.13), rgba(239,68,68,.05));
+  border-color: rgba(239,68,68,.4); color: var(--red);
+}
+.banner b { color: inherit; }
+
+/* ============ 主体容器 ============ */
+main { max-width: 1280px; margin: 0 auto; padding: 22px 26px 60px; }
+
+/* KPI 卡片行 */
+.kpi-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  margin-bottom: 18px;
+}
+.card {
+  background: var(--card); border: 1px solid var(--card-border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 20px 22px; position: relative; overflow: hidden;
+  transition: transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s ease;
+  backdrop-filter: blur(12px);
+}
+.card:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); }
+.card::after {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2), transparent 80%);
+  opacity: .7;
+}
+.card-label { font-size: 12px; color: var(--text-3); letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 10px; }
+.card-value { font-size: 34px; font-weight: 800; letter-spacing: -.5px; display: flex; align-items: baseline; gap: 8px; }
+.card-value small { font-size: 15px; font-weight: 600; color: var(--text-3); }
+.card-sub { margin-top: 9px; font-size: 13px; color: var(--text-2); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.arrow-up { color: var(--red); font-weight: 800; }
+.arrow-down { color: var(--green); font-weight: 800; }
+.arrow-flat { color: var(--text-3); font-weight: 800; }
+
+/* KPI 内容居中（今日 ARWI / 因子贡献 / 数据状态）：水平 + 垂直居中 */
+.kpi-center {
+  display: flex; flex-direction: column;
+  justify-content: center;   /* 垂直居中 */
+  align-items: center;       /* 水平居中 */
+  text-align: center;
+}
+.kpi-center .card-value { justify-content: center; }
+.kpi-center .card-sub { justify-content: center; }
+
+/* 信号灯 */
+.light-wrap { display: flex; align-items: center; gap: 16px; }
+.light {
+  width: 62px; height: 62px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center; font-size: 26px;
+  transition: all .5s ease; position: relative;
+}
+.light.red {
+  background: radial-gradient(circle at 32% 30%, #ffb4b4, var(--red) 62%);
+  box-shadow: 0 0 26px rgba(239,68,68,.55), inset 0 2px 6px rgba(255,255,255,.35);
+}
+.light.yellow {
+  background: radial-gradient(circle at 32% 30%, #ffe2a8, var(--amber) 62%);
+  box-shadow: 0 0 26px rgba(245,158,11,.5), inset 0 2px 6px rgba(255,255,255,.35);
+}
+.light.green {
+  background: radial-gradient(circle at 32% 30%, #aef2d6, var(--green) 62%);
+  box-shadow: 0 0 26px rgba(16,185,129,.5), inset 0 2px 6px rgba(255,255,255,.35);
+}
+.light.blink { animation: blink 1s steps(1) 3; }
+@keyframes blink { 50% { opacity: .15; box-shadow: none; } }
+.light-info .sig-text { font-size: 22px; font-weight: 800; }
+.light-info .sig-sub { font-size: 12.5px; color: var(--text-3); margin-top: 3px; }
+.signal-legend { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--card-border); display: flex; flex-direction: column; gap: 6px; }
+.sl-item { display: flex; align-items: flex-start; gap: 7px; font-size: 12px; line-height: 1.6; color: var(--text-2); }
+.sl-item b { color: var(--text); white-space: nowrap; }
+.sl-dot { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; margin-top: 4px; }
+.chip { font-size: 11.5px; padding: 3px 9px; border-radius: 999px; font-weight: 700; }
+.chip.red { background: rgba(239,68,68,.14); color: var(--red); }
+.chip.yellow { background: rgba(245,158,11,.16); color: var(--amber); }
+.chip.green { background: rgba(16,185,129,.14); color: var(--green); }
+.chip.gray { background: rgba(139,152,173,.16); color: var(--text-3); }
+.chip.blue { background: rgba(59,130,246,.16); color: #3b82f6; }
+
+/* 图表区 */
+.charts-row { display: grid; grid-template-columns: 1.25fr 1fr; gap: 16px; margin-bottom: 18px; }
+.chart-box { height: 340px; }
+.move-card { grid-column: 1 / -1; }   /* MOVE 看板全宽 */
+.move-kpi { display: flex; gap: 26px; flex-wrap: wrap; margin: 2px 0 10px; }
+.move-item { display: flex; flex-direction: column; gap: 3px; }
+.move-label { font-size: 11.5px; color: var(--text-3); letter-spacing: .5px; }
+.move-val { font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.move-val.pos { color: var(--red); }
+.move-val.neg { color: var(--green); }
+.move-source-note { margin-top: 10px; padding: 9px 12px; border-radius: 10px; background: var(--accent-soft); border: 1px dashed var(--card-border); font-size: 11.5px; color: var(--text-2); line-height: 1.7; }
+.move-source-note a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.move-source-note a:hover { text-decoration: underline; }
+
+/* 全球宏观风险仪表盘 */
+.macro-risk-section { margin-bottom: 18px; }
+.macro-risk-card { padding: 16px 18px; }
+.macro-asof { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.macro-system { font-size: 14px; font-weight: 700; padding: 11px 16px; border-radius: 12px; margin: 4px 0 14px; text-align: center; letter-spacing: .3px; }
+.macro-system.red   { background: rgba(239,68,68,.14); color: var(--red); border: 1px solid rgba(239,68,68,.35); }
+.macro-system.yellow{ background: rgba(245,158,11,.14); color: var(--amber); border: 1px solid rgba(245,158,11,.4); }
+.macro-system.green { background: rgba(16,185,129,.13); color: var(--green); border: 1px solid rgba(16,185,129,.35); }
+.macro-system.none  { display: none; }
+.macro-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.macro-cell { border: 1px solid var(--card-border); border-radius: 14px; padding: 14px 14px 10px; background: var(--card); display: flex; flex-direction: column; gap: 8px; transition: transform .25s cubic-bezier(.16,1,.3,1), box-shadow .25s; }
+.macro-cell:hover { transform: translateY(-3px); box-shadow: 0 10px 26px rgba(0,0,0,.13); }
+.macro-cell .mc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
+.macro-cell .mc-name { font-size: 13px; font-weight: 700; }
+.macro-cell .mc-src { font-size: 10px; color: var(--text-3); margin-top: 2px; }
+.macro-cell .mc-value { font-size: 27px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.macro-cell .mc-value small { font-size: 13px; font-weight: 600; color: var(--text-3); margin-left: 3px; }
+.macro-cell .mc-meta { display: flex; justify-content: space-between; gap: 6px; font-size: 11.5px; color: var(--text-2); }
+.macro-cell .mc-meta b { font-variant-numeric: tabular-nums; color: var(--text); }
+.macro-cell .mc-alert { font-size: 12.5px; font-weight: 700; padding: 5px 10px; border-radius: 999px; text-align: center; }
+.mc-alert.extreme { background: rgba(239,68,68,.16); color: #ef4444; }
+.mc-alert.abnormal{ background: rgba(249,115,22,.16); color: #f97316; }
+.mc-alert.off     { background: rgba(245,158,11,.16); color: #f59e0b; }
+.mc-alert.normal  { background: rgba(16,185,129,.14); color: #10b981; }
+.mc-alert.none    { background: rgba(148,163,184,.12); color: var(--text-3); }
+.macro-band { font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.macro-band.calm   { background: rgba(16,185,129,.15); color: #10b981; }
+.macro-band.mid    { background: rgba(6,182,212,.15); color: #06b6d4; }
+.macro-band.warn   { background: rgba(245,158,11,.16); color: #f59e0b; }
+.macro-band.crisis { background: rgba(249,115,22,.16); color: #f97316; }
+.macro-band.extreme{ background: rgba(239,68,68,.18); color: #ef4444; }
+.macro-cell .mc-spark { width: 100%; height: 34px; margin-top: 2px; }
+.macro-cell .mc-input-row { display: flex; gap: 6px; margin-top: 2px; }
+.macro-cell .mc-input-row input { flex: 1; min-width: 0; background: var(--accent-soft); border: 1px solid var(--card-border); color: var(--text); border-radius: 8px; padding: 5px 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.macro-cell .mc-input-row input:focus { outline: none; border-color: var(--accent); }
+.macro-cell .mc-save { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 5px 11px; font-size: 12px; font-weight: 700; cursor: pointer; transition: opacity .2s; }
+.macro-cell .mc-save:hover { opacity: .85; }
+.macro-cell .mc-save:disabled { opacity: .45; cursor: wait; }
+.macro-cell .mc-manual-note { font-size: 10.5px; color: var(--text-3); margin-top: 2px; }
+.macro-cell .mc-date { flex: 0 0 96px; width: 96px; background: var(--accent-soft); border: 1px solid var(--card-border); color: var(--text); border-radius: 8px; padding: 5px 6px; font-size: 11px; }
+.macro-disclaimer { margin-top: 14px; padding: 11px 14px; border-radius: 10px; background: var(--accent-soft); border: 1px dashed var(--card-border); font-size: 11.5px; color: var(--text-2); line-height: 1.7; }
+
+@media (max-width: 1080px) { .macro-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px)  { .macro-grid { grid-template-columns: 1fr; } }
+.section-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+.section-title .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.section-sub { font-size: 12px; color: var(--text-3); margin-bottom: 10px; }
+
+/* 底部区 */
+.bottom-row { display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; align-items: start; }
+.table-card { overflow: visible; }    /* 明细表完全展开：列直接显示，必要时让整页可横滚 */
+.table-wrap { overflow-x: visible; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table th, table td { white-space: nowrap; padding: 7px 8px; }
+th, td { padding: 11px 12px; text-align: left; white-space: nowrap; }
+thead th {
+  font-size: 11.5px; color: var(--text-3); letter-spacing: .8px; text-transform: uppercase;
+  border-bottom: 1px solid var(--card-border); font-weight: 700;
+}
+tbody tr { border-bottom: 1px solid var(--card-border); transition: background .18s ease; }
+tbody tr:last-child { border-bottom: 0; }
+tbody tr:hover { background: var(--accent-soft); }
+td.num { font-variant-numeric: tabular-nums; font-weight: 600; }
+td .dev-pos { color: var(--red); }
+td .dev-neg { color: var(--green); }
+td .dev-flat { color: var(--text-3); }
+.badge { font-size: 11px; padding: 2.5px 9px; border-radius: 999px; font-weight: 700; }
+.badge.ok { background: rgba(16,185,129,.13); color: var(--green); }
+.badge.stale { background: rgba(245,158,11,.15); color: var(--amber); }
+.badge.error { background: rgba(239,68,68,.14); color: var(--red); }
+.unit { font-size: 11px; color: var(--text-3); margin-left: 2px; }
+
+/* 总结卡 */
+.summary-card { position: relative; }
+.summary-card::before {
+  content: ""; position: absolute; left: 0; top: 18px; bottom: 18px; width: 4px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
+}
+#summary-text { font-size: 14.5px; line-height: 2; color: var(--text-2); }
+#summary-text b { color: var(--text); }
+
+/* ARWI 使用方法 */
+.usage-card { overflow: hidden; }
+.usage-block { margin-top: 14px; }
+.usage-block:first-of-type { margin-top: 4px; }
+.usage-h { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 9px; }
+.usage-table { border: 1px solid var(--card-border); border-radius: 12px; overflow: hidden; }
+.usage-row { display: grid; grid-template-columns: 1.15fr 1.15fr 1.7fr; }
+.usage-row > span { padding: 9px 12px; font-size: 12.5px; line-height: 1.65; color: var(--text-2); border-top: 1px solid var(--card-border); }
+.usage-row:first-child > span { border-top: none; }
+.usage-row > span + span { border-left: 1px solid var(--card-border); }
+.usage-row.usage-head > span { font-weight: 700; color: var(--text); background: var(--accent-soft); }
+.usage-pits { list-style: decimal; padding-left: 22px; margin: 0; display: flex; flex-direction: column; gap: 9px; }
+.usage-pits li { font-size: 13px; line-height: 1.8; color: var(--text-2); }
+.usage-pits li::marker { color: var(--accent); font-weight: 700; }
+.usage-pits li b { color: var(--text); }
+@media (max-width: 900px) {
+  .usage-row { grid-template-columns: 1fr; }
+  .usage-row > span + span { border-left: none; border-top: 1px solid var(--card-border); }
+  .usage-row.usage-head { display: none; }
+}
+
+/* 加载 / 错误 */
+#overlay {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
+  background: var(--bg); transition: opacity .4s ease;
+}
+#overlay.hidden { opacity: 0; pointer-events: none; }
+.spinner {
+  width: 54px; height: 54px; border-radius: 50%;
+  border: 4px solid var(--accent-soft); border-top-color: var(--accent);
+  animation: rot .9s linear infinite; margin: 0 auto 18px;
+}
+#overlay p { color: var(--text-2); font-size: 14px; text-align: center; line-height: 1.8; }
+.error-card { max-width: 560px; margin: 70px auto; text-align: center; }
+.error-card h2 { margin-bottom: 12px; }
+.error-card p { color: var(--text-2); line-height: 1.9; margin-bottom: 20px; }
+
+footer { text-align: center; color: var(--text-3); font-size: 12px; padding: 8px 0 30px; }
+
+/* 响应式 */
+@media (max-width: 1080px) {
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .charts-row, .bottom-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+  .kpi-row { grid-template-columns: 1fr; }
+  header { padding: 12px 16px; }
+  main { padding: 16px 14px 40px; }
+  .card-value { font-size: 28px; }
+}
+</style>
+</head>
+<body data-theme="light">
+
+<!-- 加载遮罩 -->
+<div id="overlay">
+  <div>
+    <div class="spinner"></div>
+    <p id="overlay-text">正在加载看板数据…<br><span style="font-size:12px;color:var(--text-3)">首次运行会自动回填历史数据，可能需要 10~30 秒</span></p>
+  </div>
+</div>
+
+<!-- 顶栏 -->
+<header>
+  <div class="logo">
+    <div class="logo-badge">🛡️</div>
+    <span>ARWI 3.0 资产风险预警看板</span>
+  </div>
+  <div class="header-right">
+    <span class="time-chip" id="time-chip">数据更新时间：--</span>
+    <span class="chip blue" id="snapshot-chip" style="display:none">📅 每日自动快照 · GitHub Pages</span>
+    <div class="theme-group" id="theme-group">
+      <button data-theme-val="light">浅色</button>
+      <button data-theme-val="dark">深色</button>
+      <button data-theme-val="system">跟随系统</button>
+    </div>
+    <button class="btn primary" id="btn-refresh" onclick="manualRefresh()">
+      <span id="refresh-icon">⟳</span> 手动刷新
+    </button>
+  </div>
+</header>
+
+<!-- 警示条 -->
+<div class="banner warn" id="banner-warnings"></div>
+<div class="banner err" id="banner-source">
+  <b>⚠️ 数据源异常：</b><span id="banner-source-text"></span>
+</div>
+
+<main>
+  <!-- KPI 行 -->
+  <section class="kpi-row">
+    <div class="card kpi-center">
+      <div class="card-label">今日 ARWI 综合风险指数</div>
+      <div class="card-value"><span id="kpi-arwi">--</span><small id="kpi-arwi-sub">σ 相对前10日</small></div>
+      <div class="card-sub"><span id="kpi-direction">--</span><span id="kpi-mean">较前10日均值：--</span></div>
+    </div>
+    <div class="card">
+      <div class="card-label">风险信号灯</div>
+      <div class="light-wrap">
+        <div class="light yellow" id="signal-light">●</div>
+        <div class="light-info">
+          <div class="sig-text" id="kpi-signal">--</div>
+          <div class="sig-sub" id="kpi-prev-signal">较前一日：--</div>
+        </div>
+      </div>
+      <div class="signal-legend">
+        <div class="sl-item"><span class="sl-dot" style="background:#ef4444"></span><b>红灯（高风险）</b>：ARWI &gt; +1.0（5个因子中至少3个恶化）</div>
+        <div class="sl-item"><span class="sl-dot" style="background:#f59e0b"></span><b>黄灯（观望）</b>：ARWI 介于 -0.5 至 +1.0</div>
+        <div class="sl-item"><span class="sl-dot" style="background:#10b981"></span><b>绿灯（积极）</b>：ARWI &lt; -0.5（5个因子中至少3个改善）</div>
+      </div>
+    </div>
+    <div class="card kpi-center">
+      <div class="card-label">因子贡献统计</div>
+      <div class="card-value"><span id="kpi-worsened">--</span><small>恶化 / 5 个因子</small></div>
+      <div class="card-sub">
+        <span id="kpi-improved">--</span> 改善 ·
+        <span id="kpi-neutral">--</span> 中性 ·
+        <span id="kpi-extreme">极端值 0</span>
+      </div>
+    </div>
+    <div class="card kpi-center">
+      <div class="card-label">数据状态</div>
+      <div class="card-value" style="font-size:22px"><span id="kpi-data-date">--</span></div>
+      <div class="card-sub">
+        <span id="kpi-as-of">--</span>
+        <span id="kpi-real-note" class="chip gray" style="display:none">实际利率=名义-盈亏平衡</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 今日总结（置顶：KPI 之后第一个模块） -->
+  <section>
+    <div class="card summary-card">
+      <div class="section-title"><span class="dot"></span>📝 今日总结</div>
+      <div id="summary-text">--</div>
+    </div>
+  </section>
+
+  <!-- ARWI 的使用方法（今日总结下方） -->
+  <section>
+    <div class="card usage-card">
+      <div class="section-title"><span class="dot"></span>📖 ARWI 的使用方法</div>
+
+      <div class="usage-block">
+        <div class="usage-h">一、核心盯盘节奏（按时间段拆解）</div>
+        <div class="usage-table">
+          <div class="usage-row usage-head">
+            <span>🟡时间段</span><span>⚠️盯什么</span><span>✅为什么</span>
+          </div>
+          <div class="usage-row">
+            <span>🟢 每天北京时间 20:30</span>
+            <span>美国经济数据（CPI/非农/零售）</span>
+            <span>数据超预期 → 美债跳涨 → ARWI 瞬间翻红 → 立马减仓</span>
+          </div>
+          <div class="usage-row">
+            <span>🟢 每天开盘前（A股 9:30 / 美股 21:30）</span>
+            <span>看 ①美元 + ②VIX + ③美债</span>
+            <span>这三个是领先指标，方向一致就按信号执行</span>
+          </div>
+          <div class="usage-row">
+            <span>🟢 突发新闻（中东/美联储讲话）</span>
+            <span>关注 ⑤黄金 + ⑥原油 的即时异动</span>
+            <span>金油暴涨 → ARWI 中的反向因子拉高 → 警惕</span>
+          </div>
+          <div class="usage-row">
+            <span>🟢 每周五收盘后</span>
+            <span>回顾 ARWI 当周趋势</span>
+            <span>连续 3 天红 → 减仓；连续 3 天绿 → 加仓</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="usage-block">
+        <div class="usage-h">二、几个散户常踩的坑，再强调一遍</div>
+        <ol class="usage-pits">
+          <li><b>ARWI 是环境判断工具，不是买卖点。</b>今天绿灯不代表明天一定涨，只是说当前环境对多头友好，具体买卖还要结合你自己的持仓成本。</li>
+          <li><b>黄金涨 ≠ 所有股票都涨。</b>绿灯利好的是成长股和黄金股，传统能源（煤炭、石油）反而可能因油价下跌而承压。</li>
+          <li><b>不要频繁切换。</b>ARWI 每天看一次就够了，日内波动不用管。</li>
+          <li><b>优先级：美元 &gt; VIX &gt; 美债 &gt; 黄金 &gt; 原油。</b>美元是总开关，它转向的话其他信号要重新评估。</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- 图表区 -->
+  <section class="charts-row">
+    <div class="card">
+      <div class="section-title" style="justify-content:space-between">
+        <span style="display:flex;align-items:center;gap:8px"><span class="dot"></span>ARWI 趋势（MA5 / MA10 / MA30 / MA60 均线）</span>
+        <span class="theme-group" id="trend-range-group">
+          <button data-range="60" class="active">60日</button>
+          <button data-range="30">30日</button>
+          <button data-range="10">10日</button>
+          <button data-range="5">5日</button>
+        </span>
+      </div>
+      <div class="section-sub">虚线为信号阈值：+1.0（红灯）/ -0.5（绿灯）；圆点颜色=当日信号；叠加 5/10/30/60 日均线辅助判势</div>
+      <div class="chart-box" id="chart-trend"></div>
+    </div>
+    <div class="card">
+      <div class="section-title"><span class="dot"></span>5 因子今日 Z-Score</div>
+      <div class="section-sub">红=推升风险（正向贡献），绿=缓解风险；±2σ 为极端警戒线</div>
+      <div class="chart-box" id="chart-factors"></div>
+    </div>
+    <div class="card move-card">
+      <div class="section-title" style="justify-content:space-between">
+        <span style="display:flex;align-items:center;gap:8px"><span class="dot"></span>ICE BofA MOVE 债券波动率（近半年）</span>
+        <span id="move-badge"></span>
+      </div>
+      <div class="section-sub">MOVE 是美债期权隐含波动率指数（债市"VIX"，数值约 50~160），越高代表债券市场波动/避险压力越大</div>
+      <div class="move-kpi">
+        <div class="move-item"><span class="move-label">最新</span><span class="move-val" id="move-latest">--</span></div>
+        <div class="move-item"><span class="move-label">120日均值</span><span class="move-val" id="move-mean">--</span></div>
+        <div class="move-item"><span class="move-label">较120日均值</span><span class="move-val" id="move-dir">--</span></div>
+        <div class="move-item"><span class="move-label">120日峰值</span><span class="move-val" id="move-high">--</span></div>
+      </div>
+      <div class="chart-box" id="chart-move" style="height:320px"></div>
+      <div class="move-source-note">
+        数据源：<a href="https://cn.investing.com/indices/ice-bofaml-move" target="_blank" rel="noopener noreferrer">investing.com · ICE BofAML MOVE（NYSE ^MOVE）</a> —
+        每日自动抓取（Playwright 真实浏览器绕过 Cloudflare），数据延迟约 1 个交易日。点击链接可直达原数据页面。
+      </div>
+    </div>
+  </section>
+
+  <!-- 全球宏观风险仪表盘 -->
+  <section class="macro-risk-section">
+    <div class="card macro-risk-card">
+      <div class="section-title" style="justify-content:space-between">
+        <span style="display:flex;align-items:center;gap:8px"><span class="dot"></span>全球宏观风险仪表盘</span>
+        <span class="macro-asof" id="macro-asof"></span>
+      </div>
+      <div class="section-sub">监控 VIX / MOVE / IG-OAS / HY-OAS 四大风险指标 · 20个交易日滚动 Z-Score · 阈值分级：平静 / 中性 / 警惕 / 危机 / 极端危机</div>
+      <div id="macro-system" class="macro-system none"></div>
+      <div class="macro-grid" id="macro-grid"></div>
+      <div class="macro-disclaimer" id="macro-disclaimer"></div>
+    </div>
+  </section>
+
+  <!-- 底部区 -->
+  <section class="bottom-row">
+    <div class="card table-card">
+      <div class="section-title"><span class="dot"></span>指标对比明细（今日 vs 前5 / 10 / 30 / 60日均值）</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>指标</th><th>今日数值</th>
+              <th>前5日均值</th><th>前10日均值</th><th>前30日均值</th><th>前60日均值</th>
+              <th>偏离(10日)</th><th>Z-Score(10日)</th><th>状态</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>ARWI = 0.2·实际利率 + 0.2·美元 + 0.2·VIX + 0.2·原油 − 0.2·黄金（滚动10日 Z-Score 合成）· 数据源：Yahoo Finance / FRED</footer>
+
+<script>
+/* ============ ECharts 加载：本地优先，CDN 兜底（国内可用性最优解） ============ */
+const ECHARTS_CDNS = [
+  "https://cdn.bootcdn.net/ajax/libs/echarts/5.5.0/echarts.min.js",
+  "https://cdn.staticfile.net/echarts/5.5.0/echarts.min.js",
+  "https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js",
+  "https://unpkg.com/echarts@5.5.1/dist/echarts.min.js"
+];
+function loadScriptWithTimeout(src, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = src;
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      s.remove();
+      reject(new Error("加载超时"));
+    }, timeoutMs);
+    s.onload = () => { if (done) return; done = true; clearTimeout(timer); resolve(); };
+    s.onerror = () => { if (done) return; done = true; clearTimeout(timer); reject(new Error("加载失败")); };
+    document.head.appendChild(s);
+  });
+}
+async function loadECharts(i) {
+  if (window.echarts) return window.echarts;
+  if (i >= ECHARTS_CDNS.length) throw new Error("所有 CDN 均不可用");
+  // 第 0 个候选为本地文件（/static/echarts.min.js，已随项目内置，秒开且不依赖外网）
+  const src = i === 0 ? "/static/echarts.min.js" : ECHARTS_CDNS[i - 1];
+  try {
+    await loadScriptWithTimeout(src, 7000);
+    return window.echarts;
+  } catch (e) {
+    return loadECharts(i + 1);   // 换下一个候选（本地缺失/失败时回退 CDN）
+  }
+}
+
+/* ============ 状态 ============ */
+const state = {
+  payload: null,
+  charts: {},
+  signalFlashShown: false,
+  refreshTimer: null,
+  trendRange: 60          // 趋势图窗口：60 / 30 / 10 / 5
+};
+const SIG_COLOR = { red: "#ef4444", yellow: "#f59e0b", green: "#10b981" };
+
+/* ============ 主题 ============ */
+function applyTheme(theme) {
+  if (theme === "system") {
+    theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  document.body.dataset.theme = theme;
+  document.querySelectorAll("#theme-group button").forEach(b =>
+    b.classList.toggle("active", b.dataset.themeVal === (state.theme || "system") || (!state.theme && b.dataset.themeVal === "system"))
+  );
+  renderCharts();
+}
+function initTheme() {
+  state.theme = localStorage.getItem("arwi-theme") || "system";
+  applyTheme(state.theme);
+}
+document.getElementById("theme-group").addEventListener("click", e => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  state.theme = btn.dataset.themeVal;
+  localStorage.setItem("arwi-theme", state.theme);
+  applyTheme(state.theme);
+});
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if (state.theme === "system") applyTheme("system");
+});
+
+/* 趋势图周期切换：60日 / 30日 / 10日 / 5日 */
+document.getElementById("trend-range-group").addEventListener("click", e => {
+  const btn = e.target.closest("button[data-range]");
+  if (!btn) return;
+  state.trendRange = parseInt(btn.dataset.range, 10);
+  document.querySelectorAll("#trend-range-group button").forEach(b =>
+    b.classList.toggle("active", b === btn));
+  renderCharts();
+});
+
+/* ============ 图表主题色 ============ */
+function chartTheme() {
+  const dark = document.body.dataset.theme === "dark";
+  return {
+    text: dark ? "#9aa8bf" : "#475569",
+    grid: dark ? "#1e2a44" : "#e4e9f2",
+    accent: dark ? "#818cf8" : "#4f46e5",
+    cardBg: "transparent"
+  };
+}
+
+/* ============ 数据加载 ============ */
+window.__INLINE_DATA__ = null;   // INLINE_DATA_PLACEHOLDER
+async function fetchJSON(url, opts) {
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+async function loadData(showLoader) {
+  if (showLoader) showOverlay("正在加载看板数据…");
+  try {
+    /* 静态导出模式（GitHub Pages）：数据已内联在页面，无需请求后端 */
+    if (window.__INLINE_DATA__ && window.__INLINE_DATA__.data) {
+      const d = window.__INLINE_DATA__.data;
+      state.payload = d;
+      if (d.success) {
+        hideOverlay();
+        const chip = document.getElementById("snapshot-chip");
+        if (chip) {
+          chip.style.display = "";
+          chip.textContent = "📅 每日自动快照 · " + (window.__INLINE_DATA__.generated_at || "");
+        }
+        render(d);
+        /* 静态页无需自动刷新，但仍保留手动刷新按钮的友好提示 */
+        const br = document.getElementById("btn-refresh");
+        if (br) { br.disabled = true; br.title = "静态快照页，每日自动更新"; }
+        return;
+      }
+    }
+    const d = await fetchJSON("/api/data");
+    state.payload = d;
+    if (d.success) {
+      hideOverlay();
+      render(d);
+      scheduleAutoRefresh();
+    } else {
+      showOverlay(d.error || "数据加载失败", true);
+    }
+  } catch (e) {
+    /* 区分三种情况：① 页面端口不是 5000（预览面板/静态副本）→ 明确指引访问 5000；
+       ② 是 5000 端口但后端没起 → 提示运行 python app.py；③ 纯静态 file:// 或外网 */
+    const port = location.port || (location.protocol === "file:" ? "file" : "");
+    let hint;
+    if (location.protocol !== "file:" && /^(127\.0\.0\.1|localhost)$/.test(location.hostname) && port !== "5000") {
+      hint = `当前页面来自端口 <b>${port}</b>（静态预览副本），无法访问数据接口。<br>` +
+        `请直接在浏览器打开：<b><a href="http://127.0.0.1:5000" style="color:var(--accent);text-decoration:underline">http://127.0.0.1:5000</a></b> 查看实时看板` +
+        `<br>（已确认后端服务正在 5000 端口运行）`;
+    } else if (port === "5000") {
+      hint = "无法连接后端服务，请确认已运行：python app.py（在 arwi-dashboard 目录下）";
+    } else {
+      hint = "当前是静态预览页（file:// 或非 5000 端口），无法访问数据接口。<br>" +
+        "<b>请直接访问 http://127.0.0.1:5000 查看实时看板</b>（先运行 python app.py）";
+    }
+    showOverlay(hint + "<br><span style='font-size:12px;color:var(--text-3)'>" + e.message + "</span>", true);
+  }
+}
+
+async function manualRefresh() {
+  const btn = document.getElementById("btn-refresh");
+  const icon = document.getElementById("refresh-icon");
+  btn.disabled = true; icon.classList.add("spin"); icon.textContent = "⟳";
+  try {
+    const d = await fetchJSON("/api/refresh", { method: "POST" });
+    state.payload = d;
+    if (d.success) {
+      render(d);
+      toast("已更新：" + (d.as_of || ""));
+    } else {
+      showOverlay(d.error || "刷新失败", true);
+    }
+  } catch (e) {
+    toast("刷新失败：" + e.message, true);
+  } finally {
+    btn.disabled = false; icon.classList.remove("spin"); icon.textContent = "⟳";
+  }
+}
+
+let toastTimer = null;
+function toast(msg, isErr) {
+  let el = document.getElementById("toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "toast";
+    el.style.cssText = "position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:200;" +
+      "padding:11px 22px;border-radius:999px;font-size:13.5px;font-weight:600;box-shadow:var(--shadow-hover);" +
+      "transition:opacity .3s ease;";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.background = isErr ? "var(--red)" : "var(--accent)";
+  el.style.color = "#fff";
+  el.style.opacity = "1";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (el.style.opacity = "0"), 2600);
+}
+
+function scheduleAutoRefresh() {
+  if (state.refreshTimer) return;
+  state.refreshTimer = setInterval(() => loadData(false), 300000); // 每5分钟静默刷新
+}
+
+function showOverlay(text, keep) {
+  document.getElementById("overlay-text").innerHTML = text;
+  document.getElementById("overlay").classList.remove("hidden");
+  if (keep) state.overlayKeep = true;
+}
+function hideOverlay() {
+  if (state.overlayKeep) return;
+  document.getElementById("overlay").classList.add("hidden");
+}
+
+/* ============ 渲染 ============ */
+function fmt(v, digits) {
+  if (v === null || v === undefined || isNaN(v)) return "--";
+  return Number(v).toLocaleString("zh-CN", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+function render(d) {
+  /* --- KPI --- */
+  document.getElementById("kpi-arwi").textContent = fmt(d.arwi, 2);
+  const dirEl = document.getElementById("kpi-direction");
+  const dirMap = {
+    up:   ["▲ 上升", "arrow-up"],
+    down: ["▼ 下降", "arrow-down"],
+    flat: ["◆ 持平", "arrow-flat"]
+  };
+  dirEl.textContent = dirMap[d.direction][0];
+  dirEl.className = dirMap[d.direction][1];
+  document.getElementById("kpi-mean").textContent = `较前10日均值：${fmt(d.mean10_arwi, 2)}`;
+
+  const light = document.getElementById("signal-light");
+  light.className = "light " + d.signal;
+  light.textContent = d.signal === "red" ? "✕" : d.signal === "green" ? "✓" : "•";
+  document.getElementById("kpi-signal").textContent = d.signal_text;
+  const prevEl = document.getElementById("kpi-prev-signal");
+  prevEl.textContent = "较前一日：" + (d.signal_changed ? `${d.prev_signal} → ${d.signal}` : "信号未变化");
+
+  document.getElementById("kpi-worsened").textContent = d.worsened;
+  document.getElementById("kpi-improved").textContent = `${d.improved} 个`;
+  document.getElementById("kpi-neutral").textContent = `${d.neutral} 个`;
+  const ext = d.warnings.length;
+  document.getElementById("kpi-extreme").textContent = `极端值 ${ext} 个`;
+  document.getElementById("kpi-extreme").style.color = ext ? "var(--amber)" : "";
+
+  document.getElementById("kpi-data-date").textContent = "交易日 " + d.data_date;
+  document.getElementById("kpi-as-of").textContent = "更新 " + d.as_of;
+  document.getElementById("time-chip").textContent = "数据更新时间：" + d.as_of;
+  const note = document.getElementById("kpi-real-note");
+  note.style.display = d.substituted_real_rate ? "" : "none";
+
+  /* --- 警示条 --- */
+  const wb = document.getElementById("banner-warnings");
+  if (d.warnings.length) {
+    wb.innerHTML = "<b>⚠️ 极端值提醒：</b>" + d.warnings.map(w => "<span>" + w + "</span>").join("<br>");
+    wb.classList.add("show");
+  } else {
+    wb.classList.remove("show");
+  }
+  const sb = document.getElementById("banner-source");
+  if (d.source_anomaly) {
+    const bad = (d.factors || []).filter(f => f.status === "error")
+      .map(f => f.name + "（连续3天拉取失败）");
+    document.getElementById("banner-source-text").textContent =
+      bad.join("、") + "，看板将沿用最新有效值展示，请检查网络后手动刷新。";
+    sb.classList.add("show");
+  } else {
+    sb.classList.remove("show");
+  }
+
+  /* --- 信号变化闪烁（3次）--- */
+  if (d.signal_changed && !state.signalFlashShown) {
+    light.classList.add("blink");
+    state.signalFlashShown = true;
+    setTimeout(() => light.classList.remove("blink"), 3200);
+  }
+
+  /* --- 明细表 --- */
+  const tb = document.getElementById("table-body");
+  tb.innerHTML = "";
+  d.table.forEach(m => {
+    const tr = document.createElement("tr");
+    const nameTd = document.createElement("td");
+    nameTd.innerHTML = `<b>${m.name}</b><span class="unit">${m.symbol}</span>`;
+    tr.appendChild(nameTd);
+
+    const todayTd = document.createElement("td");
+    todayTd.className = "num";
+    todayTd.textContent = fmt(m.today, 2) + (m.is_yield ? "%" : "");
+    tr.appendChild(todayTd);
+
+    // 前 5/10/30/60 日均值：数字着色表示相对今日高低（红=今日更高，绿=今日更低）
+    ["mean5", "mean10", "mean30", "mean60"].forEach(k => {
+      const td = document.createElement("td");
+      td.className = "num";
+      const v = m[k];
+      const n = m["n" + k.slice(4)];          // n5/n10/n30/n60（实际样本数）
+      const need = parseInt(k.slice(4));       // 5/10/30/60（窗口要求）
+      const degraded = v !== null && n < need; // 数据不足降级使用
+      if (v === null || v === undefined) {
+        td.textContent = "--";
+      } else {
+        const d = m.today - v;
+        const thr = m.is_yield ? 0.01 : (m.today * 0.002);  // 阈值：收益率 1bp / 价格 0.2%
+        td.innerHTML = `<span class="${d > thr ? "dev-pos" : (d < -thr ? "dev-neg" : "dev-flat")}">` +
+          fmt(v, 2) + (m.is_yield ? "%" : "") +
+          (degraded ? `<small style="opacity:.55;margin-left:3px">/${n}</small>` : "") +
+          "</span>";
+      }
+      tr.appendChild(td);
+    });
+
+    const devTd = document.createElement("td");
+    devTd.className = "num";
+    let devText, devCls;
+    if (m.deviation === null || m.deviation === undefined || m.mean10 === null) {
+      devText = "--"; devCls = "dev-flat";
+    } else if (Math.abs(m.deviation) < 0.005) {
+      devText = "→ 持平"; devCls = "dev-flat";
+    } else if (m.deviation > 0) {
+      devText = "▲ " + fmt(Math.abs(m.deviation), m.dev_unit === "bp" ? 0 : 2) + " " + m.dev_unit;
+      devCls = "dev-pos";
+    } else {
+      devText = "▼ " + fmt(Math.abs(m.deviation), m.dev_unit === "bp" ? 0 : 2) + " " + m.dev_unit;
+      devCls = "dev-neg";
+    }
+    devTd.innerHTML = `<span class="${devCls}">${devText}</span>`;
+    tr.appendChild(devTd);
+
+    const zTd = document.createElement("td");
+    zTd.className = "num";
+    const zAbs = Math.abs(m.z);
+    zTd.innerHTML = (m.z >= 0 ? "+" : "") + fmt(m.z, 2) + "σ" +
+      (zAbs > 2 ? " <span class='badge error'>极端</span>" : "");
+    tr.appendChild(zTd);
+
+    const stTd = document.createElement("td");
+    const stMap = { ok: ["正常", "ok"], stale: ["待更新", "stale"], error: ["数据源异常", "error"] };
+    const st = stMap[m.status] || stMap.ok;
+    stTd.innerHTML = `<span class="badge ${st[1]}">${st[0]}</span>` +
+      (m.substituted ? " <span class='badge yellow'>估算</span>" : "");
+    tr.appendChild(stTd);
+    tb.appendChild(tr);
+  });
+
+  /* --- 总结 --- */
+  const sEl = document.getElementById("summary-text");
+  sEl.innerHTML = ""; // 用 DOM 插入避免注入
+  const parts = (d.summary || "").split(/(「[^」]*」)/g);
+  parts.forEach(p => {
+    if (!p) return;
+    const span = document.createElement("span");
+    if (p.startsWith("「")) { span.innerHTML = "<b>" + p + "</b>"; }
+    else { span.textContent = p; }
+    sEl.appendChild(span);
+  });
+
+  renderMoveKPI(d);
+  renderCharts();
+  loadMacroRisk();
+}
+
+/* ============ ECharts ============ */
+function renderCharts() {
+  const d = state.payload;
+  if (!d || !d.success) return;
+  if (!window.echarts) return;
+  const th = chartTheme();
+  renderTrendChart(d, th);
+  renderFactorChart(d, th);
+  renderMoveChart(d, th);    // 本地录入历史折线图：始终渲染（手动录入数据积累后自动成图）
+}
+
+/* ---- MOVE 债券波动率：KPI + 近半年折线图 ---- */
+function renderMoveKPI(d) {
+  const mv = d.move || {};
+  document.getElementById("move-latest").textContent =
+    mv.latest !== null && mv.latest !== undefined ? fmt(mv.latest, 2) : "--";
+  document.getElementById("move-mean").textContent =
+    mv.mean60 !== null && mv.mean60 !== undefined ? fmt(mv.mean60, 2) : "--";
+  const stMap = { ok: ["正常", "ok"], stale: ["待更新", "stale"], error: ["数据源异常", "error"], manual: ["手动录入", "yellow"] };
+  const st = stMap[mv.status] || stMap.ok;
+  document.getElementById("move-badge").innerHTML = `<span class="chip ${st[1]}">${st[0]}</span>`;
+  const dir = document.getElementById("move-dir");
+  if (mv.latest !== null && mv.latest !== undefined && mv.mean60 !== null && mv.mean60 !== undefined) {
+    const diff = mv.latest - mv.mean60;
+    const thr = Math.max(mv.mean60 * 0.005, 0.5);
+    if (Math.abs(diff) < thr) {
+      dir.textContent = "→ 持平"; dir.className = "move-val";
+    } else if (diff > 0) {
+      dir.textContent = "▲ " + fmt(diff, 2) + "（+" + (diff / mv.mean60 * 100).toFixed(1) + "%）";
+      dir.className = "move-val pos";
+    } else {
+      dir.textContent = "▼ " + fmt(Math.abs(diff), 2) + "（-" + (Math.abs(diff) / mv.mean60 * 100).toFixed(1) + "%）";
+      dir.className = "move-val neg";
+    }
+  } else { dir.textContent = "--"; dir.className = "move-val"; }
+  const hi = mv.history && mv.history.length ? Math.max(...mv.history.map(h => h.value)) : null;
+  document.getElementById("move-high").textContent = hi !== null ? fmt(hi, 2) : "--";
+}
+
+function renderMoveChart(d, th) {
+  /* MOVE 近半年折线图：MOVE 主线 + MA20，数据由 Playwright + investing.com 每日自动抓取入库 */
+  const mv = d.move || {};
+  const hist = mv.history || [];
+  if (!hist.length) return;
+  const el = document.getElementById("chart-move");
+  if (!el) return;
+  if (!state.charts.move) state.charts.move = echarts.init(el);
+const dates = hist.map(h => h.date.slice(5));
+    const vals = hist.map(h => h.value);
+    const last = hist.length - 1;
+    const ma20 = movingAverage(vals, 20);
+    state.charts.move.setOption({
+    backgroundColor: "transparent",
+    legend: { data: ["MOVE", "MA20"], top: 0, right: 6, itemWidth: 14, itemHeight: 8,
+      textStyle: { color: th.text, fontSize: 11 } },
+    tooltip: {
+      trigger: "axis", backgroundColor: "rgba(15,23,42,.9)", textStyle: { color: "#fff", fontSize: 12.5 },
+      formatter: ps => {
+        const h = hist[ps[0].dataIndex];
+        let html = `<b>${h.date}</b>`;
+        ps.forEach(p => {
+          if (p.value === null || p.value === undefined || p.value === "-") return;
+          html += `<br>${p.marker}${p.seriesName}：<b>${p.value}</b>`;
+        });
+        return html;
+      }
+    },
+    grid: { left: 46, right: 18, top: 26, bottom: 26 },
+    xAxis: {
+      type: "category", data: dates, boundaryGap: false,
+      axisLine: { lineStyle: { color: th.grid } },
+      axisLabel: { color: th.text, fontSize: 11, interval: idx => idx % Math.max(1, Math.ceil(hist.length / 10)) === 0 },
+      axisTick: { show: false }
+    },
+    yAxis: {
+      type: "value", scale: true, name: "MOVE", nameTextStyle: { color: th.text },
+      splitLine: { lineStyle: { color: th.grid, type: "dashed" } },
+      axisLabel: { color: th.text, fontSize: 11 }
+    },
+    series: [
+      {
+        name: "MOVE", type: "line", data: vals, smooth: 0.35, symbolSize: 5,
+        lineStyle: { width: 2.2, color: "#0ea5e9" },
+        areaStyle: {
+          color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [{ offset: 0, color: "rgba(14,165,233,.25)" }, { offset: 1, color: "rgba(14,165,233,0)" }] }
+        },
+        markPoint: {
+          symbol: "pin", symbolSize: 42,
+          data: [{ coord: [dates[last], vals[last]], label: { formatter: "今日", fontSize: 11, color: "#fff" }, itemStyle: { color: "#0ea5e9" } }],
+          tooltip: { show: false }
+        },
+        markLine: {
+          silent: true, symbol: "none",
+          label: { fontSize: 10.5, color: th.text, position: "insideEndTop" },
+          data: [{ yAxis: mv.mean60 || 0, lineStyle: { color: "#f59e0b", type: "dashed" }, label: { formatter: "120日均值" } }]
+        }
+      },
+      { name: "MA20", type: "line", data: ma20, symbol: "none", smooth: 0.3,
+        lineStyle: { width: 1.5, color: "#8b5cf6", type: "dashed" }, z: 2 }
+    ]
+  }, { notMerge: true });
+}
+
+function renderTrendChart(d, th) {
+  const el = document.getElementById("chart-trend");
+  if (!state.charts.trend) state.charts.trend = echarts.init(el);
+  const range = state.trendRange || 60;        // 当前窗口：60/30/10/5 日
+  const hist = d.history.slice(-range);        // 窗口内历史
+  const dates = hist.map(h => h.date.slice(5));
+  const last = hist.length - 1;
+  const arwiData = hist.map(h => ({
+    value: +h.arwi.toFixed(2),
+    itemStyle: { color: SIG_COLOR[h.signal], borderColor: "rgba(255,255,255,.75)", borderWidth: 1 }
+  }));
+  // 均线基于全部 60 日计算，再裁切到当前窗口（短窗口内 MA60 值依然准确）
+  const allVals = d.history.map(h => +h.arwi.toFixed(2));
+  const ma5 = movingAverage(allVals, 5).slice(-range);
+  const ma10 = movingAverage(allVals, 10).slice(-range);
+  const ma30 = movingAverage(allVals, 30).slice(-range);
+  const ma60 = movingAverage(allVals, 60).slice(-range);
+  // x 轴标签稀疏显示：约每 10 个点留 1 个
+  const labelStep = Math.max(1, Math.ceil(range / 10));
+  const chart = state.charts.trend;
+  chart.setOption({
+    backgroundColor: "transparent",
+    legend: {
+      data: ["ARWI", "MA5", "MA10", "MA30", "MA60"],
+      top: 0, right: 6, itemWidth: 14, itemHeight: 8,
+      textStyle: { color: th.text, fontSize: 11 }
+    },
+    tooltip: {
+      trigger: "axis",
+      backgroundColor: "rgba(15,23,42,.9)",
+      textStyle: { color: "#fff", fontSize: 12.5 },
+      formatter: ps => {
+        const h = hist[ps[0].dataIndex];
+        let html = `<b>${h.date}</b>　信号：${SIG_NAME[h.signal]}`;
+        ps.forEach(p => {
+          if (p.value === null || p.value === undefined || p.value === "-") return;
+          html += `<br>${p.marker}${p.seriesName}：<b>${p.value}</b>`;
+        });
+        return html;
+      }
+    },
+    grid: { left: 46, right: 18, top: 36, bottom: 30 },
+    xAxis: {
+      type: "category", data: dates, boundaryGap: false,
+      axisLine: { lineStyle: { color: th.grid } },
+      axisLabel: {
+        color: th.text, fontSize: 11,
+        interval: idx => idx % labelStep === 0
+      },
+      axisTick: { show: false }
+    },
+    yAxis: {
+      type: "value", scale: true, name: "σ",
+      nameTextStyle: { color: th.text },
+      splitLine: { lineStyle: { color: th.grid, type: "dashed" } },
+      axisLabel: { color: th.text, fontSize: 11.5, formatter: v => (+v).toFixed(1) }
+    },
+    series: [
+      {
+        name: "ARWI", type: "line", data: arwiData,
+        smooth: 0.35, symbolSize: range <= 10 ? 8 : 6,
+        lineStyle: { width: 2.5, color: th.accent },
+        areaStyle: {
+          color: {
+            type: "linear", x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: "rgba(79,70,229,.22)" },
+              { offset: 1, color: "rgba(79,70,229,0)" }
+            ]
+          }
+        },
+        markLine: {
+          silent: true, symbol: "none",
+          label: { fontSize: 10.5, color: th.text, position: "insideEndTop" },
+          data: [
+            { yAxis: 1, lineStyle: { color: "#ef4444", type: "dashed" }, label: { formatter: "红灯 +1.0" } },
+            { yAxis: -0.5, lineStyle: { color: "#10b981", type: "dashed" }, label: { formatter: "绿灯 -0.5" } },
+            { yAxis: 0, lineStyle: { color: th.grid } }
+          ]
+        },
+        markPoint: {
+          symbol: "pin", symbolSize: 44,
+          data: [{
+            coord: [dates[last], arwiData[last].value],
+            label: { formatter: "今日", fontSize: 11, color: "#fff" },
+            itemStyle: { color: SIG_COLOR[hist[last].signal] }
+          }],
+          tooltip: { show: false }
+        }
+      },
+      { name: "MA5", type: "line", data: ma5, symbol: "none", smooth: 0.3,
+        lineStyle: { width: 1.6, color: "#f59e0b" }, z: 2 },
+      { name: "MA10", type: "line", data: ma10, symbol: "none", smooth: 0.3,
+        lineStyle: { width: 1.6, color: "#ec4899" }, z: 2 },
+      { name: "MA30", type: "line", data: ma30, symbol: "none", smooth: 0.3,
+        lineStyle: { width: 1.6, color: "#06b6d4" }, z: 2 },
+      { name: "MA60", type: "line", data: ma60, symbol: "none", smooth: 0.3,
+        lineStyle: { width: 1.6, color: "#8b5cf6", type: "dashed" }, z: 2 }
+    ]
+  }, { notMerge: true });
+}
+
+/** 移动平均：前 n-1 位为 null（数据不足），从第 n 位起有效。 */
+function movingAverage(arr, n) {
+  const out = new Array(arr.length).fill(null);
+  if (arr.length < n) return out;
+  let sum = 0;
+  for (let i = 0; i < arr.length; i++) {
+    sum += arr[i];
+    if (i >= n) sum -= arr[i - n];
+    if (i >= n - 1) out[i] = +(sum / n).toFixed(3);
+  }
+  return out;
+}
+
+const SIG_NAME = { red: "🔴 高风险", yellow: "🟡 观望", green: "🟢 积极" };
+
+function renderFactorChart(d, th) {
+  const el = document.getElementById("chart-factors");
+  if (!state.charts.factors) state.charts.factors = echarts.init(el);
+  const names = d.factors.map(f => f.name);
+  /* 从 d.table 按 key 映射当日原始值，用于 tooltip/label 展示 */
+  const todayMap = {};
+  (d.table || []).forEach(m => { todayMap[m.key] = m.today; });
+  const fmtToday = (key, v) => {
+    if (v === null || v === undefined) return "";
+    if (key === "vix" || key === "dxy") return " (" + v.toFixed(2) + ")";
+    if (key === "gold" || key === "oil") return " (" + v.toFixed(0) + ")";
+    if (key === "tnx" || key === "dfii10") return " (" + v.toFixed(2) + "%)";
+    return " (" + v.toFixed(2) + ")";
+  };
+  /* Z 极小时（|z|<0.05）给最小宽度灰条 + 0 轴基准线，避免"空白行" */
+  const vals = d.factors.map(f => {
+    const isZero = Math.abs(f.final) < 0.05;
+    return {
+      value: +f.final.toFixed(2),
+      itemStyle: {
+        color: isZero ? "rgba(148,163,184,.32)" : (f.final >= 0 ? "#ef4444" : "#10b981"),
+        borderColor: isZero ? "#94a3b8" : "transparent",
+        borderWidth: isZero ? 1 : 0,
+        borderRadius: [0, 7, 7, 0]
+      }
+    };
+  });
+  const chart = state.charts.factors;
+  chart.setOption({
+    backgroundColor: "transparent",
+    tooltip: {
+      trigger: "axis", axisPointer: { type: "shadow" },
+      backgroundColor: "rgba(15,23,42,.9)", textStyle: { color: "#fff", fontSize: 12.5 },
+      formatter: ps => {
+        const p = ps[0];
+        const f = d.factors[p.dataIndex];
+        const role = f.final > 0 ? "推升风险" : (f.final < 0 ? "缓解风险" : "中性");
+        const today = todayMap[f.key];
+        return `<b>${f.name}</b><br>` +
+               `当日值：${today !== undefined ? today.toFixed(2) + (f.key === "tnx" || f.key === "dfii10" ? "%" : "") : "--"}<br>` +
+               `Z-Score：${(f.z >= 0 ? "+" : "") + f.z.toFixed(2)}σ<br>` +
+               `方向调整后：${(f.final >= 0 ? "+" : "") + f.final.toFixed(2)}σ<br>` +
+               `ARWI贡献：${(f.contribution >= 0 ? "+" : "") + (f.contribution * 100).toFixed(1)}%（${role}）`;
+      }
+    },
+    grid: { left: 74, right: 56, top: 22, bottom: 26 },
+    xAxis: {
+      type: "value", name: "σ",
+      nameTextStyle: { color: th.text },
+      splitLine: { lineStyle: { color: th.grid, type: "dashed" } },
+      axisLabel: { color: th.text, fontSize: 11 }
+    },
+    yAxis: {
+      type: "category", data: names, inverse: true,
+      axisLine: { show: false }, axisTick: { show: false },
+      axisLabel: { color: th.text, fontSize: 12.5, fontWeight: 600 }
+    },
+    series: [{
+      type: "bar", data: vals, barWidth: 22,
+      label: {
+        show: true, position: "right", fontSize: 12, fontWeight: 700,
+        color: th.text,
+        formatter: p => {
+          const f = d.factors[p.dataIndex];
+          return (p.value >= 0 ? "+" : "") + p.value.toFixed(2) + "σ" + fmtToday(f.key, todayMap[f.key]);
+        }
+      },
+      markLine: {
+        silent: true, symbol: "none",
+        label: { fontSize: 10, color: "#f59e0b", position: "insideEndTop" },
+        data: [
+          { xAxis: 0,  lineStyle: { color: "#f59e0b", type: "solid",  width: 1 } },
+          { xAxis: 2,  lineStyle: { color: "#f59e0b", type: "dashed", width: 1 } },
+          { xAxis: -2, lineStyle: { color: "#f59e0b", type: "dashed", width: 1 } }
+        ]
+      }
+    }]
+  }, { notMerge: true });
+}
+
+window.addEventListener("resize", () => {
+  Object.values(state.charts).forEach(c => c && c.resize());
+});
+
+/* ============ 全球宏观风险仪表盘 ============ */
+function sparklineSVG(values, color) {
+  if (!values || values.length < 2) return "";
+  const w = 100, h = 34, pad = 2;
+  const min = Math.min(...values), max = Math.max(...values);
+  const rng = (max - min) || 1;
+  const pts = values.map((v, i) => {
+    const x = pad + (i / (values.length - 1)) * (w - pad * 2);
+    const y = pad + (1 - (v - min) / rng) * (h - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const area = `${pts[0]} ${w - pad},${h - pad} ${pad},${h - pad}`;
+  return `<svg class="mc-spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <polygon points="${area}" fill="${color}" opacity="0.12"/>
+    <polyline points="${pts.join(" ")}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+
+function bandClass(band) {
+  return { "平静": "calm", "中性": "mid", "警惕": "warn", "危机": "crisis", "极端危机": "extreme" }[band] || "mid";
+}
+
+async function loadMacroRisk() {
+  try {
+    /* 静态导出模式：使用内联的宏观数据 */
+    let d = null;
+    if (window.__INLINE_DATA__ && window.__INLINE_DATA__.macro) {
+      d = window.__INLINE_DATA__.macro;
+    } else {
+      d = await fetchJSON("/api/macro_risk");
+    }
+    renderMacroRisk(d);
+  } catch (e) {
+    const el = document.getElementById("macro-grid");
+    if (el) el.innerHTML = "<div class='section-sub'>宏观风险数据加载失败：" + e.message + "</div>";
+  }
+}
+
+function renderMacroRisk(d) {
+  if (!d || !d.success) return;
+  document.getElementById("macro-asof").textContent = "更新 " + (d.as_of || "");
+  const disEl = document.getElementById("macro-disclaimer");
+  if (disEl) {
+    disEl.textContent = d.disclaimer || "";
+    disEl.style.display = d.disclaimer ? "" : "none";
+  }
+  const sys = d.system || {};
+  const sysEl = document.getElementById("macro-system");
+  if (sys.level === "none" || !sys.text) {
+    sysEl.className = "macro-system none"; sysEl.textContent = "";
+  } else {
+    const icon = sys.level === "red" ? "⚠️" : (sys.level === "yellow" ? "⚠️" : "✅");
+    sysEl.className = "macro-system " + sys.level;
+    sysEl.innerHTML = `${icon} ${sys.text}（Z&gt;2 的指标：<b>${sys.z_over_2}</b>/${sys.evaluated}）`;
+  }
+
+  const grid = document.getElementById("macro-grid");
+  grid.innerHTML = "";
+  const bandColor = { calm: "#10b981", mid: "#06b6d4", warn: "#f59e0b", crisis: "#f97316", extreme: "#ef4444" };
+  Object.values(d.metrics || {}).forEach(m => {
+    const cell = document.createElement("div");
+    cell.className = "macro-cell";
+    const bandCls = m.band ? bandClass(m.band) : "mid";
+    const bandTxt = m.band || "--";
+    const cur = m.current !== null && m.current !== undefined ? fmt(m.current, 1) : "--";
+    const unitTxt = m.unit ? "<small>" + m.unit + "</small>" : "";
+    const meanTxt = m.mean20 !== null ? fmt(m.mean20, 1) : "--";
+    const zTxt = m.z !== null ? (m.z >= 0 ? "+" : "") + fmt(m.z, 2) : "--";
+    const alert = m.z_alert || { level: "none", icon: "⚪", text: "数据不足" };
+    const sparkColor = bandColor[bandCls] || "#06b6d4";
+    const isManual = m.manual === true;
+    const inputHtml = "";   // 全部指标已自动化（MOVE/OAS），不再显示手动录入界面
+    cell.innerHTML = `
+      <div class="mc-head">
+        <div><div class="mc-name">${m.name}</div><div class="mc-src">${m.src}</div></div>
+        <span class="macro-band ${bandCls}">${bandTxt}</span>
+      </div>
+      <div class="mc-value">${cur}${unitTxt}</div>
+      <div class="mc-meta"><span>20日均值 <b>${meanTxt}</b></span><span>Z-Score <b>${zTxt}</b></span></div>
+      <div class="mc-alert ${alert.level}">${alert.icon} ${alert.text}</div>
+      ${sparklineSVG(m.history, sparkColor)}
+      ${inputHtml}`;
+    grid.appendChild(cell);
+  });
+}
+
+async function saveManual(key, btn) {
+  const inp = document.getElementById("mc-in-" + key);
+  const val = inp.value.trim();
+  if (!val || isNaN(parseFloat(val)) || parseFloat(val) < 0) {
+    toast("请输入有效的非负数值", true);
+    return;
+  }
+  const dateEl = document.getElementById("mc-date-" + key);
+  const date = dateEl && dateEl.value ? dateEl.value : undefined;   // 允许指定前一日（亚太时差）
+  btn.disabled = true;
+  try {
+    const r = await fetchJSON("/api/macro_risk/manual", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, value: parseFloat(val), date })
+    });
+    if (r.success) {
+      toast(`已保存 ${r.key} = ${r.value}（${r.date}）`);
+      loadMacroRisk();          // 重新拉取宏观仪表盘（Z-Score + 系统判定）
+      loadData(false);          // 同步重拉 /api/data，更新 MOVE 60 日看板 KPI + 折线图
+    } else {
+      toast("保存失败：" + (r.error || ""), true);
+    }
+  } catch (e) {
+    toast("保存失败：" + e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ============ 启动 ============ */
+function checkPortHint() {
+  /* 静态导出模式（GitHub Pages）：数据内联，不显示端口提示 */
+  if (window.__INLINE_DATA__) return;
+  /* 若页面不是从 5000 端口打开（预览面板/静态副本），给出醒目的访问指引 */
+  const port = location.port || (location.protocol === "file:" ? "file" : "");
+  if (location.protocol === "file:" || (location.hostname === "127.0.0.1" && port !== "5000") ||
+      (location.hostname === "localhost" && port !== "5000")) {
+    const bar = document.createElement("div");
+    bar.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:999;background:#f59e0b;" +
+      "color:#0f172a;font-size:13px;font-weight:700;padding:9px 14px;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.2)";
+    bar.innerHTML = `⚠️ 当前是预览副本（端口 ${port}），无法连接数据接口。` +
+      `<a href="http://127.0.0.1:5000" style="color:#0f172a;text-decoration:underline;margin-left:6px">点击访问实时看板 http://127.0.0.1:5000 →</a>`;
+    document.body.prepend(bar);
+  }
+}
+
+(async function init() {
+  initTheme();
+  checkPortHint();
+  try {
+    await loadECharts(0);
+    loadData(true);
+  } catch (e) {
+    showOverlay("图表库加载失败，请检查网络后刷新页面。<br>" + e.message, true);
+  }
+})();
+</script>
+</body>
+</html>
